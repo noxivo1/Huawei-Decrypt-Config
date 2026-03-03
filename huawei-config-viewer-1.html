@@ -1,0 +1,1678 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Huawei Config Viewer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #1e2d45;
+    --accent: #00d4ff;
+    --accent2: #ff6b35;
+    --accent3: #7c3aed;
+    --green: #10b981;
+    --yellow: #f59e0b;
+    --red: #ef4444;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* --- UPLOAD SCREEN --- */
+  #upload-screen {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    position: relative;
+  }
+
+  #upload-screen::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: 
+      radial-gradient(ellipse at 20% 50%, rgba(0,212,255,0.06) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 20%, rgba(124,58,237,0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 60% 90%, rgba(255,107,53,0.04) 0%, transparent 50%);
+    pointer-events: none;
+  }
+
+  .upload-logo {
+    font-family: var(--sans);
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 3rem;
+  }
+
+  .upload-logo span { color: var(--accent); }
+
+  .upload-title {
+    font-size: clamp(2.5rem, 6vw, 4rem);
+    font-weight: 800;
+    line-height: 1.1;
+    text-align: center;
+    margin-bottom: 1rem;
+  }
+
+  .upload-title .line1 { color: var(--text); }
+  .upload-title .line2 {
+    background: linear-gradient(90deg, var(--accent), var(--accent3));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .upload-sub {
+    color: var(--muted);
+    font-size: 1.1rem;
+    font-weight: 400;
+    text-align: center;
+    margin-bottom: 3rem;
+    max-width: 500px;
+    line-height: 1.6;
+  }
+
+  .drop-zone {
+    width: 100%;
+    max-width: 560px;
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    padding: 3rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: var(--surface);
+    position: relative;
+  }
+
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(0,212,255,0.04);
+    transform: translateY(-2px);
+    box-shadow: 0 20px 60px rgba(0,212,255,0.1);
+  }
+
+  .drop-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    display: block;
+  }
+
+  .drop-zone h3 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+
+  .drop-zone p { color: var(--muted); font-size: 0.9rem; font-family: var(--mono); }
+
+  .btn-upload {
+    display: inline-block;
+    margin-top: 1.5rem;
+    padding: 0.75rem 2rem;
+    background: linear-gradient(135deg, var(--accent), var(--accent3));
+    color: #000;
+    font-weight: 700;
+    font-size: 0.9rem;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    font-family: var(--sans);
+    transition: all 0.2s;
+  }
+
+  .btn-upload:hover { transform: scale(1.05); }
+
+  #file-input { display: none; }
+
+  .features {
+    display: flex;
+    gap: 1.5rem;
+    margin-top: 3rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 640px;
+  }
+
+  .feature-pill {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    font-size: 0.82rem;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+
+  .feature-pill .dot { width: 6px; height: 6px; border-radius: 50%; }
+
+  /* --- MAIN APP --- */
+  #app { display: none; }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 2rem;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(10px);
+  }
+
+  .topbar-brand {
+    font-weight: 800;
+    font-size: 1rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  .topbar-brand span { color: var(--accent); }
+
+  .topbar-file {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--muted);
+    background: var(--surface2);
+    padding: 0.3rem 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+
+  .btn-new {
+    padding: 0.4rem 1rem;
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: var(--sans);
+    font-size: 0.82rem;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+
+  .btn-new:hover { border-color: var(--accent); color: var(--accent); }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    min-height: calc(100vh - 60px);
+  }
+
+  /* --- SIDEBAR --- */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 1.5rem 0;
+    position: sticky;
+    top: 60px;
+    height: calc(100vh - 60px);
+    overflow-y: auto;
+  }
+
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-track { background: transparent; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .sidebar-section {
+    padding: 0 1rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .sidebar-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 1rem 0.5rem 0.5rem;
+    display: block;
+  }
+
+  .sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.55rem 0.75rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--muted);
+    transition: all 0.15s;
+    border: 1px solid transparent;
+  }
+
+  .sidebar-item:hover { background: var(--surface2); color: var(--text); }
+
+  .sidebar-item.active {
+    background: rgba(0,212,255,0.08);
+    border-color: rgba(0,212,255,0.15);
+    color: var(--accent);
+  }
+
+  .sidebar-item .icon { font-size: 1rem; opacity: 0.8; }
+
+  .badge {
+    margin-left: auto;
+    font-size: 0.7rem;
+    background: var(--surface2);
+    padding: 0.1rem 0.5rem;
+    border-radius: 100px;
+    font-family: var(--mono);
+  }
+
+  /* --- CONTENT AREA --- */
+  .content {
+    padding: 2rem;
+    overflow-y: auto;
+  }
+
+  .section { display: none; }
+  .section.active { display: block; }
+
+  .section-header {
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-header h2 {
+    font-size: 1.6rem;
+    font-weight: 800;
+  }
+
+  .section-header p { color: var(--muted); font-size: 0.9rem; margin-top: 0.3rem; }
+
+  /* --- CARDS --- */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    transition: all 0.2s;
+  }
+
+  .card:hover { border-color: rgba(0,212,255,0.2); }
+
+  .card-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.4rem;
+  }
+
+  .card-value {
+    font-family: var(--mono);
+    font-size: 0.95rem;
+    word-break: break-all;
+  }
+
+  .card-accent { border-left: 3px solid var(--accent); }
+  .card-green { border-left: 3px solid var(--green); }
+  .card-yellow { border-left: 3px solid var(--yellow); }
+  .card-red { border-left: 3px solid var(--red); }
+
+  /* --- TABLE --- */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+  }
+
+  .data-table th {
+    text-align: left;
+    padding: 0.6rem 1rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+  }
+
+  .data-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid rgba(30,45,69,0.6);
+    vertical-align: middle;
+  }
+
+  .data-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .data-table td:first-child { color: var(--muted); font-size: 0.82rem; font-family: var(--mono); }
+
+  /* --- FIELD ROW (editable) --- */
+  .field-grid {
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .field-row {
+    display: grid;
+    grid-template-columns: 220px 1fr auto;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    transition: all 0.15s;
+  }
+
+  .field-row:hover { border-color: rgba(0,212,255,0.15); }
+
+  .field-name {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  .field-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.45rem 0.75rem;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    width: 100%;
+    transition: border-color 0.15s;
+    outline: none;
+  }
+
+  .field-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,212,255,0.08); }
+  .field-input.readonly {
+    cursor: default;
+    color: var(--muted);
+  }
+
+  .field-input[data-encrypted] {
+    border-color: rgba(124,58,237,0.4);
+    background: rgba(124,58,237,0.05);
+    color: var(--accent);
+  }
+
+  .field-tag {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  .tag-enc { background: rgba(124,58,237,0.15); color: #a78bfa; }
+  .tag-edit { background: rgba(16,185,129,0.1); color: var(--green); }
+  .tag-ro { background: rgba(100,116,139,0.1); color: var(--muted); }
+  .tag-pass { background: rgba(239,68,68,0.1); color: var(--red); }
+
+  /* --- PASSWORD REVEAL --- */
+  .pwd-container {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .btn-reveal {
+    background: rgba(0,212,255,0.08);
+    border: 1px solid rgba(0,212,255,0.2);
+    color: var(--accent);
+    padding: 0.3rem 0.7rem;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 700;
+    font-family: var(--sans);
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .btn-reveal:hover { background: rgba(0,212,255,0.15); }
+
+  /* --- WIFI CARD --- */
+  .wifi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .wifi-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .wifi-icon {
+    width: 44px; height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    flex-shrink: 0;
+  }
+
+  .wifi-24 { background: rgba(0,212,255,0.1); border: 1px solid rgba(0,212,255,0.2); }
+  .wifi-5g { background: rgba(124,58,237,0.1); border: 1px solid rgba(124,58,237,0.2); }
+
+  .wifi-title { font-size: 1.05rem; font-weight: 700; }
+  .wifi-band {
+    font-size: 0.75rem;
+    font-family: var(--mono);
+    color: var(--muted);
+    margin-top: 0.15rem;
+  }
+
+  .wifi-fields { display: grid; gap: 0.75rem; }
+
+  .wifi-field-row {
+    display: grid;
+    grid-template-columns: 140px 1fr auto;
+    gap: 0.75rem;
+    align-items: center;
+  }
+
+  .wifi-field-label {
+    font-size: 0.8rem;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  /* --- STATUS BADGE --- */
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 100px;
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+
+  .status-on { background: rgba(16,185,129,0.1); color: var(--green); }
+  .status-off { background: rgba(100,116,139,0.1); color: var(--muted); }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  /* --- SECTION TITLE --- */
+  .subsection-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.75rem;
+    margin-top: 1.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* --- DEVICES TABLE --- */
+  .device-row { font-family: var(--mono); font-size: 0.82rem; }
+
+  /* --- ALERT BOX --- */
+  .alert {
+    padding: 1rem 1.25rem;
+    border-radius: 10px;
+    margin-bottom: 1.5rem;
+    font-size: 0.88rem;
+    line-height: 1.5;
+  }
+
+  .alert-info { background: rgba(0,212,255,0.06); border: 1px solid rgba(0,212,255,0.15); color: #93c5fd; }
+  .alert-warn { background: rgba(245,158,11,0.06); border: 1px solid rgba(245,158,11,0.15); color: var(--yellow); }
+
+  /* --- EXPORT BTN --- */
+  .btn-export {
+    padding: 0.6rem 1.25rem;
+    background: linear-gradient(135deg, var(--green), #059669);
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: var(--sans);
+    font-size: 0.85rem;
+    font-weight: 700;
+    transition: all 0.2s;
+  }
+
+  .btn-export:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(16,185,129,0.3); }
+
+  .btn-copy {
+    padding: 0.3rem 0.6rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.72rem;
+    font-family: var(--mono);
+    transition: all 0.15s;
+  }
+
+  .btn-copy:hover { border-color: var(--green); color: var(--green); }
+  .btn-copy.copied { border-color: var(--green); color: var(--green); }
+
+  /* --- OVERVIEW STATS --- */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .stat-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    text-align: center;
+  }
+
+  .stat-number {
+    font-size: 2rem;
+    font-weight: 800;
+    font-family: var(--mono);
+    background: linear-gradient(135deg, var(--accent), var(--accent3));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .stat-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 0.25rem;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .layout { grid-template-columns: 1fr; }
+    .sidebar { position: static; height: auto; display: flex; overflow-x: auto; padding: 0.5rem; gap: 0.25rem; flex-wrap: wrap; }
+    .sidebar-label { display: none; }
+    .field-row { grid-template-columns: 1fr; }
+    .wifi-field-row { grid-template-columns: 1fr; }
+  }
+
+  /* Scrollbar */
+  .content::-webkit-scrollbar { width: 5px; }
+  .content::-webkit-scrollbar-track { background: transparent; }
+  .content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* Loading */
+  .loading {
+    display: flex; align-items: center; justify-content: center;
+    padding: 4rem;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- UPLOAD SCREEN -->
+<div id="upload-screen">
+  <div class="upload-logo"><span>HUAWEI</span> CONFIG VIEWER</div>
+  <div class="upload-title">
+    <div class="line1">Analiza tu backup</div>
+    <div class="line2">de router Huawei</div>
+  </div>
+  <p class="upload-sub">Carga el archivo <code style="font-family:var(--mono);color:var(--accent)">hw_ctree*.html</code> de tu router para visualizar, desencriptar y editar toda la configuración.</p>
+
+  <div class="drop-zone" id="drop-zone">
+    <span class="drop-icon">📦</span>
+    <h3>Arrastra tu archivo aquí</h3>
+    <p>hw_ctree_*.html · archivo de backup Huawei</p>
+    <button class="btn-upload" onclick="document.getElementById('file-input').click()">Seleccionar archivo</button>
+  </div>
+  <input type="file" id="file-input" accept=".html,.xml,.cfg,.bin">
+
+  <div class="features">
+    <div class="feature-pill"><div class="dot" style="background:var(--accent)"></div>Desencriptado AES-CBC</div>
+    <div class="feature-pill"><div class="dot" style="background:var(--green)"></div>Contraseñas WiFi</div>
+    <div class="feature-pill"><div class="dot" style="background:var(--accent3)"></div>PPPoE / ISP</div>
+    <div class="feature-pill"><div class="dot" style="background:var(--yellow)"></div>Red LAN / DHCP</div>
+    <div class="feature-pill"><div class="dot" style="background:var(--red)"></div>Dispositivos conectados</div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <header class="topbar">
+    <div class="topbar-brand"><span>HW</span> CONFIG</div>
+    <div class="topbar-file" id="topbar-filename">—</div>
+    <button class="btn-new" onclick="resetApp()">↑ Nuevo archivo</button>
+  </header>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="sidebar-section">
+        <span class="sidebar-label">General</span>
+        <div class="sidebar-item active" onclick="showSection('overview')">
+          <span class="icon">🏠</span> Resumen
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <span class="sidebar-label">Credenciales</span>
+        <div class="sidebar-item" onclick="showSection('credentials')">
+          <span class="icon">🔑</span> Contraseñas
+          <span class="badge" id="badge-creds">0</span>
+        </div>
+        <div class="sidebar-item" onclick="showSection('wifi')">
+          <span class="icon">📶</span> WiFi
+        </div>
+        <div class="sidebar-item" onclick="showSection('pppoe')">
+          <span class="icon">🌐</span> PPPoE / WAN
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <span class="sidebar-label">Red</span>
+        <div class="sidebar-item" onclick="showSection('lan')">
+          <span class="icon">🔌</span> LAN / DHCP
+        </div>
+        <div class="sidebar-item" onclick="showSection('devices')">
+          <span class="icon">📱</span> Dispositivos
+          <span class="badge" id="badge-devs">0</span>
+        </div>
+        <div class="sidebar-item" onclick="showSection('wan')">
+          <span class="icon">🔗</span> Conexiones WAN
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <span class="sidebar-label">Sistema</span>
+        <div class="sidebar-item" onclick="showSection('system')">
+          <span class="icon">⚙️</span> Sistema
+        </div>
+        <div class="sidebar-item" onclick="showSection('tr069')">
+          <span class="icon">🖥️</span> TR-069 / ACS
+        </div>
+        <div class="sidebar-item" onclick="showSection('raw')">
+          <span class="icon">📄</span> XML Raw
+        </div>
+      </div>
+    </nav>
+
+    <main class="content">
+
+      <!-- OVERVIEW -->
+      <div class="section active" id="section-overview">
+        <div class="section-header">
+          <h2>📊 Resumen del dispositivo</h2>
+          <p>Vista general del archivo de configuración Huawei</p>
+        </div>
+        <div class="stats-row" id="stats-row"></div>
+        <div class="cards-grid" id="overview-cards"></div>
+        <div class="alert alert-info" id="encrypt-info"></div>
+      </div>
+
+      <!-- CREDENTIALS -->
+      <div class="section" id="section-credentials">
+        <div class="section-header">
+          <h2>🔑 Contraseñas del sistema</h2>
+          <p>Todas las contraseñas detectadas — las cifradas con $2…$ se desencriptan con AES-CBC (clave interna Huawei)</p>
+        </div>
+        <div class="alert alert-warn">
+          ⚠️ Las contraseñas marcadas como <strong>PBKDF2 / SHA256</strong> son hash unidireccionales y no se pueden revertir. Solo las marcadas <strong>AES-CBC</strong> son completamente recuperables.
+        </div>
+        <div class="field-grid" id="creds-list"></div>
+      </div>
+
+      <!-- WIFI -->
+      <div class="section" id="section-wifi">
+        <div class="section-header">
+          <h2>📶 Redes WiFi</h2>
+          <p>SSIDs, contraseñas y configuración de radio</p>
+        </div>
+        <div id="wifi-list"></div>
+      </div>
+
+      <!-- PPPOE -->
+      <div class="section" id="section-pppoe">
+        <div class="section-header">
+          <h2>🌐 PPPoE / Conexión ISP</h2>
+          <p>Credenciales y parámetros de la conexión al proveedor</p>
+        </div>
+        <div class="field-grid" id="pppoe-list"></div>
+      </div>
+
+      <!-- LAN -->
+      <div class="section" id="section-lan">
+        <div class="section-header">
+          <h2>🔌 Red LAN y DHCP</h2>
+          <p>Configuración de la red local</p>
+        </div>
+        <div class="field-grid" id="lan-list"></div>
+      </div>
+
+      <!-- DEVICES -->
+      <div class="section" id="section-devices">
+        <div class="section-header">
+          <h2>📱 Dispositivos conectados</h2>
+          <p>Historial de dispositivos que se han conectado al router</p>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>MAC Address</th>
+                <th>Nombre / DHCP</th>
+                <th>Tipo</th>
+                <th>Interfaz</th>
+                <th>Última conexión</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody id="devices-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- WAN -->
+      <div class="section" id="section-wan">
+        <div class="section-header">
+          <h2>🔗 Conexiones WAN</h2>
+          <p>Interfaces de red hacia el ISP</p>
+        </div>
+        <div id="wan-list"></div>
+      </div>
+
+      <!-- SYSTEM -->
+      <div class="section" id="section-system">
+        <div class="section-header">
+          <h2>⚙️ Información del sistema</h2>
+          <p>Versión de firmware, usuarios y configuración global</p>
+        </div>
+        <div class="field-grid" id="system-list"></div>
+      </div>
+
+      <!-- TR-069 -->
+      <div class="section" id="section-tr069">
+        <div class="section-header">
+          <h2>🖥️ TR-069 / ACS</h2>
+          <p>Configuración del servidor de gestión remota</p>
+        </div>
+        <div class="field-grid" id="tr069-list"></div>
+      </div>
+
+      <!-- RAW -->
+      <div class="section" id="section-raw">
+        <div class="section-header" style="display:flex;justify-content:space-between;align-items:start">
+          <div>
+            <h2>📄 XML Raw</h2>
+            <p>Contenido original del archivo de configuración</p>
+          </div>
+          <button class="btn-export" onclick="downloadRaw()">⬇ Descargar XML</button>
+        </div>
+        <pre id="raw-content" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.5rem;font-family:var(--mono);font-size:0.75rem;overflow:auto;max-height:70vh;line-height:1.6;color:#94a3b8;white-space:pre-wrap;word-break:break-all"></pre>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+// ========== HUAWEI AES-CBC DECRYPT ==========
+// Key: sha256("9jK0lk5kLmxn8sjojW962llHY76xAc2zDf7!ui%s9(lmV1L8")
+// But the actual key used is derived via HW_AES_PlainToBin from "Df7!ui%s9(lmV1L8"
+// Based on the writeup the direct key is: Df7!ui%s9(lmV1L8
+
+const HW_KEY = "Df7!ui%s9(lmV1L8";
+
+// The encoding is a custom "AscUnvisible" scheme
+// Each byte is encoded as two printable chars offset from 0x23
+function hwAscUnvisible(str) {
+  const bytes = [];
+  for (let i = 0; i + 1 < str.length; i += 2) {
+    const hi = str.charCodeAt(i) - 0x23;
+    const lo = str.charCodeAt(i + 1) - 0x23;
+    bytes.push((hi << 4) | lo);
+  }
+  return bytes;
+}
+
+function hwPlainToBin(bytes) {
+  // Reduce 0x14 (20) bytes to 0x10 (16) bytes by XOR folding
+  const out = new Uint8Array(16);
+  for (let i = 0; i < 16; i++) out[i] = bytes[i];
+  for (let i = 16; i < bytes.length; i++) out[i - 16] ^= bytes[i];
+  return out;
+}
+
+function hwDecrypt(encStr) {
+  try {
+    if (!encStr || !encStr.startsWith('$2') || !encStr.endsWith('$')) {
+      return { ok: false, plain: encStr, method: 'plain' };
+    }
+    // Strip prefix $2 and suffix $
+    const inner = encStr.slice(2, -1);
+
+    // Decode via AscUnvisible
+    const raw = hwAscUnvisible(inner);
+    if (raw.length < 20) return { ok: false, plain: '(demasiado corto)', method: 'error' };
+
+    // Last 20 bytes → 16-byte IV
+    const ivBytes = hwPlainToBin(raw.slice(raw.length - 20));
+    const iv = CryptoJS.lib.WordArray.create(ivBytes);
+
+    // Key from "Df7!ui%s9(lmV1L8"
+    const keyBytes = CryptoJS.enc.Utf8.parse(HW_KEY);
+
+    // Data = everything except last 20 bytes
+    const dataBytes = raw.slice(0, raw.length - 20);
+    const data = CryptoJS.lib.WordArray.create(new Uint8Array(dataBytes));
+
+    const decrypted = CryptoJS.AES.decrypt(
+      { ciphertext: data },
+      keyBytes,
+      { iv: iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 }
+    );
+
+    const result = decrypted.toString(CryptoJS.enc.Utf8);
+    if (!result) return { ok: false, plain: '(no se pudo desencriptar)', method: 'error' };
+    return { ok: true, plain: result, method: 'AES-CBC' };
+  } catch (e) {
+    return { ok: false, plain: '(error: ' + e.message + ')', method: 'error' };
+  }
+}
+
+function isEncrypted(val) {
+  return typeof val === 'string' && val.startsWith('$2') && val.endsWith('$') && val.length > 10;
+}
+
+// ========== STATE ==========
+let rawXML = '';
+let parsedData = {};
+let currentFile = '';
+
+// ========== FILE HANDLING ==========
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); handleFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+
+function handleFile(file) {
+  if (!file) return;
+  currentFile = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    rawXML = e.target.result;
+    processConfig(rawXML);
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+function resetApp() {
+  document.getElementById('upload-screen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+  fileInput.value = '';
+}
+
+// ========== PARSE CONFIG ==========
+function attr(el, name, def = '') {
+  const v = el.getAttribute(name);
+  return v !== null ? v : def;
+}
+
+function htmlDecode(str) {
+  const txt = document.createElement('textarea');
+  txt.innerHTML = str;
+  return txt.value;
+}
+
+function processConfig(xml) {
+  // Parse the XML
+  const parser = new DOMParser();
+  // The file is XML but sometimes has HTML entities — we'll work with regex for safety
+  const doc = parser.parseFromString(xml, 'text/html');
+
+  parsedData = {};
+
+  // ---- PRODUCT INFO ----
+  const pi = doc.querySelector('X_HW_ProductInfo');
+  parsedData.productInfo = pi ? {
+    originalVersion: attr(pi, 'originalVersion'),
+    currentVersion: attr(pi, 'currentVersion'),
+    customInfo: attr(pi, 'customInfo'),
+    customInfoDetail: attr(pi, 'customInfoDetail'),
+  } : {};
+
+  // ---- DEVICE INFO ----
+  const di = doc.querySelector('DeviceInfo');
+  parsedData.deviceInfo = di ? {
+    firstUseDate: attr(di, 'FirstUseDate'),
+    totalHWReboot: attr(di, 'X_HW_TotalHWReboot'),
+    totalSWReboot: attr(di, 'X_HW_TotalSWReboot'),
+    upPortMode: attr(di, 'X_HW_UpPortMode'),
+    arch: doc.querySelector('ProcessorInstance') ? attr(doc.querySelector('ProcessorInstance'), 'Architecture') : 'arm',
+    features: doc.querySelector('SupportedDataModelInstance') ? attr(doc.querySelector('SupportedDataModelInstance'), 'Features') : '',
+  } : {};
+
+  // ---- PPPoE ----
+  const ppp = doc.querySelector('WANPPPConnectionInstance');
+  parsedData.pppoe = ppp ? {
+    enable: attr(ppp, 'Enable'),
+    username: attr(ppp, 'Username'),
+    password: attr(ppp, 'Password'),
+    connectionType: attr(ppp, 'ConnectionType'),
+    pppoeName: attr(ppp, 'PPPoEACName'),
+    pppoeService: attr(ppp, 'PPPoEServiceName'),
+    vlan: attr(ppp, 'X_HW_VLAN'),
+    ipv4: attr(ppp, 'X_HW_IPv4Enable'),
+    ipv6: attr(ppp, 'X_HW_IPv6Enable'),
+    nat: attr(ppp, 'NATEnabled'),
+    mtu: attr(ppp, 'MaxMRUSize'),
+    trigger: attr(ppp, 'ConnectionTrigger'),
+    serviceList: attr(ppp, 'X_HW_SERVICELIST'),
+    bindPort: attr(ppp, 'X_HW_BindPhyPortInfo'),
+    idleDisconnect: attr(ppp, 'IdleDisconnectTime'),
+    ipv6LLA: attr(ppp, 'X_HW_IPv6LLA'),
+    lastDisconnect: attr(ppp, 'LastDisconnectTime'),
+    dns: attr(ppp, 'DNSServers'),
+  } : {};
+
+  // ---- LAN ----
+  const lan = doc.querySelector('LANHostConfigManagement');
+  parsedData.lan = lan ? {
+    dhcpEnable: attr(lan, 'DHCPServerEnable'),
+    dhcpLeaseTime: attr(lan, 'DHCPLeaseTime'),
+    minAddress: attr(lan, 'MinAddress'),
+    maxAddress: attr(lan, 'MaxAddress'),
+    subnet: attr(lan, 'SubnetMask'),
+    dns: attr(lan, 'DNSServers'),
+    gateway: attr(lan, 'IPRouters'),
+    domainName: attr(lan, 'DomainName'),
+    mtu: attr(lan, 'X_HW_MTU'),
+  } : {};
+
+  const lanIp = doc.querySelector('IPInterfaceInstance');
+  parsedData.lanIp = lanIp ? {
+    ip: attr(lanIp, 'IPInterfaceIPAddress'),
+    mask: attr(lanIp, 'IPInterfaceSubnetMask'),
+  } : {};
+
+  // ---- WiFi ----
+  const wlans = doc.querySelectorAll('WLANConfigurationInstance');
+  parsedData.wifi = [];
+  wlans.forEach(w => {
+    const ssid = attr(w, 'SSID');
+    if (!ssid) return;
+    const psk = w.querySelector('PreSharedKeyInstance');
+    parsedData.wifi.push({
+      instanceId: attr(w, 'InstanceID'),
+      name: attr(w, 'Name'),
+      ssid,
+      band: attr(w, 'X_HW_RFBand') || attr(w, 'X_HW_Band'),
+      channel: attr(w, 'X_HW_Channel') || attr(w, 'Channel'),
+      standard: attr(w, 'Standard'),
+      security: attr(w, 'ModeEnabled') || attr(w, 'BeaconType'),
+      enabled: attr(w, 'RadioEnabled'),
+      txPower: attr(w, 'TransmitPower'),
+      ssidAdvEnabled: attr(w, 'SSIDAdvertisementEnabled'),
+      keyPassphrase: psk ? attr(psk, 'KeyPassphrase') : '',
+      preSharedKey: psk ? attr(psk, 'PreSharedKey') : '',
+      wpsPwd: w.querySelector('WPS') ? attr(w.querySelector('WPS'), 'DevicePassword') : '',
+      maxClients: attr(w, 'X_HW_AssociateNum'),
+      macFilterEnabled: attr(w, 'MACAddressControlEnabled'),
+      radiusKey: attr(w, 'X_HW_RadiusKey'),
+    });
+  });
+
+  // ---- WEB USERS ----
+  parsedData.webUsers = [];
+  doc.querySelectorAll('X_HW_WebUserInfoInstance').forEach(u => {
+    parsedData.webUsers.push({
+      instanceId: attr(u, 'InstanceID'),
+      username: attr(u, 'UserName'),
+      password: attr(u, 'Password'),
+      level: attr(u, 'UserLevel'),
+      enabled: attr(u, 'Enable'),
+      passMode: attr(u, 'PassMode'),
+      salt: attr(u, 'Salt'),
+      modifyFlag: attr(u, 'ModifyPasswordFlag'),
+    });
+  });
+
+  // ---- CLI USERS ----
+  parsedData.cliUsers = [];
+  doc.querySelectorAll('X_HW_CLIUserInfoInstance').forEach(u => {
+    parsedData.cliUsers.push({
+      instanceId: attr(u, 'InstanceID'),
+      username: attr(u, 'Username'),
+      password: attr(u, 'Userpassword'),
+      group: attr(u, 'UserGroup'),
+      encryptMode: attr(u, 'EncryptMode'),
+      salt: attr(u, 'Salt'),
+    });
+  });
+
+  // ---- TR-069 ----
+  const mgmt = doc.querySelector('ManagementServer');
+  parsedData.tr069 = mgmt ? {
+    enableCWMP: attr(mgmt, 'EnableCWMP'),
+    url: attr(mgmt, 'URL'),
+    username: attr(mgmt, 'Username'),
+    password: attr(mgmt, 'Password'),
+    periodicEnable: attr(mgmt, 'PeriodicInformEnable'),
+    periodicInterval: attr(mgmt, 'PeriodicInformInterval'),
+    connReqURL: attr(mgmt, 'ConnectionRequestURL'),
+    connReqUser: attr(mgmt, 'ConnectionRequestUsername'),
+    connReqPass: attr(mgmt, 'ConnectionRequestPassword'),
+    certPass: attr(mgmt, 'X_HW_CertPassword'),
+    path: attr(mgmt, 'X_HW_Path'),
+  } : {};
+
+  // ---- SSL CERT ----
+  const ssl = doc.querySelector('X_HW_WebSslInfo');
+  parsedData.sslCert = ssl ? { certPassword: attr(ssl, 'CertPassword'), enable: attr(ssl, 'Enable') } : {};
+
+  // ---- DEVICES ----
+  parsedData.devices = [];
+  doc.querySelectorAll('hostsInstance').forEach(h => {
+    parsedData.devices.push({
+      id: attr(h, 'InstanceID'),
+      mac: attr(h, 'MACAddress'),
+      name: attr(h, 'Name') || attr(h, 'DhcpName'),
+      devType: attr(h, 'DhcpDevType') || attr(h, 'DevType'),
+      iface: attr(h, 'ConnectInterface'),
+      lastSeen: attr(h, 'LastStatusChangeTime'),
+      online: attr(h, 'IsOnlineFlag'),
+    });
+  });
+
+  // ---- WAN CONNECTIONS ----
+  parsedData.wanConns = [];
+  doc.querySelectorAll('WANIPConnectionInstance').forEach(w => {
+    parsedData.wanConns.push({
+      type: 'IP',
+      instanceId: attr(w, 'InstanceID'),
+      enable: attr(w, 'Enable'),
+      connectionType: attr(w, 'ConnectionType'),
+      addressing: attr(w, 'AddressingType'),
+      serviceList: attr(w, 'X_HW_SERVICELIST'),
+      vlan: attr(w, 'X_HW_VLAN'),
+      ipv4: attr(w, 'X_HW_IPv4Enable'),
+      ipv6: attr(w, 'X_HW_IPv6Enable'),
+      nat: attr(w, 'NATEnabled'),
+      mtu: attr(w, 'MaxMTUSize'),
+      bindPort: attr(w, 'X_HW_BindPhyPortInfo'),
+      dns: attr(w, 'DNSServers'),
+    });
+  });
+  doc.querySelectorAll('WANPPPConnectionInstance').forEach(w => {
+    parsedData.wanConns.push({
+      type: 'PPP',
+      instanceId: attr(w, 'InstanceID'),
+      enable: attr(w, 'Enable'),
+      username: attr(w, 'Username'),
+      vlan: attr(w, 'X_HW_VLAN'),
+      serviceList: attr(w, 'X_HW_SERVICELIST'),
+      connectionType: attr(w, 'ConnectionType'),
+      bindPort: attr(w, 'X_HW_BindPhyPortInfo'),
+      nat: attr(w, 'NATEnabled'),
+      ipv6LLA: attr(w, 'X_HW_IPv6LLA'),
+    });
+  });
+
+  // ---- TIME ----
+  const time = doc.querySelector('Time');
+  parsedData.time = time ? {
+    ntpServer1: attr(time, 'NTPServer1'),
+    ntpServer2: attr(time, 'NTPServer2'),
+    timezone: attr(time, 'LocalTimeZone'),
+    tzName: attr(time, 'LocalTimeZoneName'),
+    syncInterval: attr(time, 'X_HW_SynInterval'),
+    wanName: attr(time, 'X_HW_WanName'),
+  } : {};
+
+  // ---- FIREWALL ----
+  const fw = doc.querySelector('BBSPCustomization');
+  parsedData.firewall = fw ? { enabled: attr(fw, 'FirewallConfig') } : {};
+
+  // ---- ACL ----
+  const acl = doc.querySelector('AclServices');
+  parsedData.acl = acl ? {
+    httpLan: attr(acl, 'HTTPLanEnable'),
+    httpWan: attr(acl, 'HTTPWanEnable'),
+    telnetLan: attr(acl, 'TELNETLanEnable'),
+    sshLan: attr(acl, 'SSHLanEnable'),
+    sshWan: attr(acl, 'SSHWanEnable'),
+    ftpLan: attr(acl, 'FTPLanEnable'),
+  } : {};
+
+  renderApp();
+}
+
+// ========== RENDER ==========
+function renderApp() {
+  document.getElementById('upload-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('topbar-filename').textContent = currentFile || 'configuración';
+
+  renderOverview();
+  renderCredentials();
+  renderWifi();
+  renderPPPoE();
+  renderLAN();
+  renderDevices();
+  renderWAN();
+  renderSystem();
+  renderTR069();
+  document.getElementById('raw-content').textContent = rawXML.substring(0, 80000);
+}
+
+// --- OVERVIEW ---
+function renderOverview() {
+  const d = parsedData;
+  const stats = [
+    { n: d.wifi.length, l: 'Redes WiFi' },
+    { n: d.devices.length, l: 'Dispositivos' },
+    { n: d.webUsers.length + d.cliUsers.length, l: 'Usuarios' },
+    { n: d.wanConns.length, l: 'Conexiones WAN' },
+  ];
+  document.getElementById('stats-row').innerHTML = stats.map(s => `
+    <div class="stat-box">
+      <div class="stat-number">${s.n}</div>
+      <div class="stat-label">${s.l}</div>
+    </div>`).join('');
+
+  document.getElementById('badge-creds').textContent = countCreds();
+  document.getElementById('badge-devs').textContent = d.devices.length;
+
+  const cards = [];
+  if (d.productInfo.originalVersion) cards.push({ l: 'Versión Firmware', v: d.productInfo.originalVersion, cls: 'card-accent' });
+  if (d.productInfo.currentVersion) cards.push({ l: 'Versión actual', v: d.productInfo.currentVersion, cls: '' });
+  if (d.productInfo.customInfo) cards.push({ l: 'ISP / Operador', v: d.productInfo.customInfo, cls: 'card-green' });
+  if (d.deviceInfo.firstUseDate) cards.push({ l: 'Primer uso', v: d.deviceInfo.firstUseDate, cls: '' });
+  if (d.deviceInfo.totalHWReboot) cards.push({ l: 'Reinicios HW', v: d.deviceInfo.totalHWReboot, cls: '' });
+  if (d.deviceInfo.totalSWReboot) cards.push({ l: 'Reinicios SW', v: d.deviceInfo.totalSWReboot, cls: '' });
+  if (d.deviceInfo.arch) cards.push({ l: 'Arquitectura CPU', v: d.deviceInfo.arch, cls: '' });
+  if (d.deviceInfo.features) cards.push({ l: 'Características', v: d.deviceInfo.features, cls: '' });
+  if (d.lanIp.ip) cards.push({ l: 'IP LAN del router', v: d.lanIp.ip, cls: 'card-yellow' });
+  if (d.lan.dns) cards.push({ l: 'DNS LAN', v: d.lan.dns, cls: '' });
+  if (d.time.timezone) cards.push({ l: 'Zona horaria', v: `${d.time.timezone} — ${d.time.tzName}`, cls: '' });
+  if (d.time.ntpServer1) cards.push({ l: 'Servidor NTP', v: d.time.ntpServer1, cls: '' });
+  if (d.pppoe.username) cards.push({ l: 'Usuario PPPoE', v: d.pppoe.username, cls: 'card-red' });
+  if (d.firewall.enabled) cards.push({ l: 'Firewall', v: d.firewall.enabled === '1' ? '✅ Activo' : '❌ Inactivo', cls: d.firewall.enabled === '1' ? 'card-green' : 'card-red' });
+
+  document.getElementById('overview-cards').innerHTML = cards.map(c => `
+    <div class="card ${c.cls}">
+      <div class="card-label">${c.l}</div>
+      <div class="card-value">${htmlE(c.v)}</div>
+    </div>`).join('');
+
+  document.getElementById('encrypt-info').innerHTML = `
+    🔐 <strong>Cifrado del archivo:</strong> DBEncrypt=1 — Las contraseñas con formato <code style="font-family:var(--mono)">$2....$</code> están cifradas con <strong>AES-128-CBC</strong>, clave derivada de <code style="font-family:var(--mono)">Df7!ui%s9(lmV1L8</code>. Las contraseñas de usuario del sistema usan hashing PBKDF2/SHA256 y <strong>no son reversibles</strong>.
+  `;
+}
+
+function countCreds() {
+  let n = 0;
+  if (parsedData.pppoe?.password) n++;
+  parsedData.webUsers?.forEach(() => n++);
+  parsedData.cliUsers?.forEach(() => n++);
+  if (parsedData.tr069?.password) n++;
+  if (parsedData.sslCert?.certPassword) n++;
+  return n;
+}
+
+// --- CREDENTIALS ---
+function renderCredentials() {
+  let html = '';
+
+  // Web users
+  html += '<div class="subsection-title">Usuarios Web (Panel de administración)</div>';
+  parsedData.webUsers.forEach(u => {
+    html += fieldRow('Username', u.username, false);
+    if (u.passMode === '3') {
+      html += encHashRow('Password', u.password, 'PBKDF2-SHA256', u.salt);
+    } else if (u.passMode === '2') {
+      html += encHashRow('Password', u.password, 'SHA256-MD5', u.salt);
+    } else if (isEncrypted(u.password)) {
+      html += encryptedRow('Password', u.password);
+    } else {
+      html += fieldRow('Password', u.password || '(vacío)', false);
+    }
+    html += fieldRow('Nivel', u.level === '0' ? 'Admin' : 'Usuario', false);
+    html += fieldRow('Salt (hash)', u.salt, false);
+  });
+
+  // CLI users
+  html += '<div class="subsection-title">Usuarios CLI / Telnet</div>';
+  parsedData.cliUsers.forEach(u => {
+    html += fieldRow('Username', u.username, false);
+    const em = parseInt(u.encryptMode);
+    if (em === 2) {
+      html += encHashRow('Password', u.password, 'SHA256-MD5 (modo 2)', u.salt);
+    } else if (em === 3) {
+      html += encHashRow('Password', u.password, 'PBKDF2-SHA256 (modo 3)', u.salt);
+    } else if (isEncrypted(u.password)) {
+      html += encryptedRow('Password', u.password);
+    } else {
+      html += fieldRow('Password', u.password || '(vacío)', false);
+    }
+    html += fieldRow('Salt', u.salt, false);
+  });
+
+  // SSL cert
+  if (parsedData.sslCert?.certPassword) {
+    html += '<div class="subsection-title">Certificado SSL Web</div>';
+    html += encryptedRow('Cert Password', parsedData.sslCert.certPassword);
+    html += fieldRow('SSL Habilitado', parsedData.sslCert.enable === '1' ? 'Sí' : 'No', false);
+  }
+
+  // TR-069 creds
+  if (parsedData.tr069?.password) {
+    html += '<div class="subsection-title">TR-069 / ACS</div>';
+    html += fieldRow('Username ACS', parsedData.tr069.username, false);
+    if (isEncrypted(parsedData.tr069.password)) html += encryptedRow('Password ACS', parsedData.tr069.password);
+    else html += fieldRow('Password ACS', parsedData.tr069.password, false);
+    if (isEncrypted(parsedData.tr069.connReqPass)) html += encryptedRow('Connection Req Pass', parsedData.tr069.connReqPass);
+    if (isEncrypted(parsedData.tr069.certPass)) html += encryptedRow('Cert Password', parsedData.tr069.certPass);
+  }
+
+  document.getElementById('creds-list').innerHTML = html;
+}
+
+// --- WiFi ---
+function renderWifi() {
+  let html = '';
+  parsedData.wifi.forEach(w => {
+    const is5g = w.band && w.band.includes('5');
+    html += `
+    <div class="wifi-card">
+      <div class="wifi-header">
+        <div class="wifi-icon ${is5g ? 'wifi-5g' : 'wifi-24'}">${is5g ? '📡' : '📶'}</div>
+        <div>
+          <div class="wifi-title">${htmlE(w.ssid)}</div>
+          <div class="wifi-band">${w.band || (is5g ? '5 GHz' : '2.4 GHz')} · ${w.standard || '802.11ax'} · Canal ${w.channel || 'auto'}</div>
+        </div>
+        <div style="margin-left:auto">
+          <span class="status-badge ${w.ssidAdvEnabled === '1' ? 'status-on' : 'status-off'}">
+            <span class="status-dot"></span> ${w.ssidAdvEnabled === '1' ? 'Visible' : 'Oculto'}
+          </span>
+        </div>
+      </div>
+      <div class="wifi-fields">
+        ${wifiField('Seguridad', w.security || '—', false)}
+        ${w.keyPassphrase ? wifiFieldEnc('Contraseña (KeyPassphrase)', w.keyPassphrase) : ''}
+        ${w.preSharedKey ? wifiFieldEnc('PreSharedKey', w.preSharedKey) : ''}
+        ${w.wpsPwd ? wifiFieldEnc('WPS Password', w.wpsPwd) : ''}
+        ${wifiField('Potencia TX', w.txPower + '%', false)}
+        ${wifiField('Máx. clientes', w.maxClients, false)}
+        ${wifiField('MAC Filter', w.macFilterEnabled === '1' ? 'Activo' : 'Inactivo', false)}
+      </div>
+    </div>`;
+  });
+  if (!html) html = '<div class="alert alert-info">No se detectaron redes WiFi configuradas.</div>';
+  document.getElementById('wifi-list').innerHTML = html;
+}
+
+function wifiField(label, value, editable) {
+  return `<div class="wifi-field-row">
+    <div class="wifi-field-label">${label}</div>
+    <div style="font-family:var(--mono);font-size:0.85rem">${htmlE(value)}</div>
+  </div>`;
+}
+
+function wifiFieldEnc(label, value) {
+  const id = 'enc_' + Math.random().toString(36).slice(2);
+  if (isEncrypted(value)) {
+    return `<div class="wifi-field-row">
+      <div class="wifi-field-label">${label}</div>
+      <input class="field-input" id="${id}" value="(click para desencriptar)" readonly style="color:var(--muted);cursor:pointer" onclick="revealInInput('${id}', '${escapeForAttr(value)}')">
+      <button class="btn-reveal" onclick="revealInInput('${id}', '${escapeForAttr(value)}')">🔓 Ver</button>
+    </div>`;
+  }
+  return `<div class="wifi-field-row">
+    <div class="wifi-field-label">${label}</div>
+    <input class="field-input" value="${htmlE(value)}" ${label.toLowerCase().includes('pass') ? 'type="password"' : ''} onchange="markChanged(this)">
+    <button class="btn-copy" onclick="copyValue('${id}',this)" data-src="${escapeForAttr(value)}">Copiar</button>
+  </div>`;
+}
+
+// --- PPPoE ---
+function renderPPPoE() {
+  const p = parsedData.pppoe;
+  if (!p || !p.username) {
+    document.getElementById('pppoe-list').innerHTML = '<div class="alert alert-info">No se encontró conexión PPPoE configurada.</div>';
+    return;
+  }
+
+  let html = '';
+  html += fieldRow('Usuario PPPoE', p.username, true);
+  if (isEncrypted(p.password)) html += encryptedRow('Contraseña PPPoE', p.password);
+  else html += fieldRow('Contraseña PPPoE', p.password, true);
+  html += fieldRow('VLAN', p.vlan, false);
+  html += fieldRow('Tipo de conexión', p.connectionType, false);
+  html += fieldRow('NAT Habilitado', p.nat === '1' ? 'Sí' : 'No', false);
+  html += fieldRow('MTU', p.mtu, true);
+  html += fieldRow('IPv4 Habilitado', p.ipv4 === '1' ? 'Sí' : 'No', false);
+  html += fieldRow('IPv6 Habilitado', p.ipv6 === '1' ? 'Sí' : 'No', false);
+  html += fieldRow('Trigger de conexión', p.trigger, false);
+  html += fieldRow('Servicio WAN', p.serviceList, false);
+  html += fieldRow('Puerto LAN vinculado', p.bindPort, false);
+  html += fieldRow('Desconexión idle (seg)', p.idleDisconnect, true);
+  if (p.dns) html += fieldRow('DNS del ISP', p.dns, true);
+  if (p.ipv6LLA) html += fieldRow('IPv6 Link-Local', p.ipv6LLA, false);
+
+  document.getElementById('pppoe-list').innerHTML = html;
+}
+
+// --- LAN ---
+function renderLAN() {
+  const l = parsedData.lan;
+  const ip = parsedData.lanIp;
+  let html = '';
+  if (ip.ip) html += fieldRow('IP del Router (LAN)', ip.ip, true);
+  if (ip.mask) html += fieldRow('Máscara de subred', ip.mask, true);
+  html += fieldRow('DHCP Habilitado', l.dhcpEnable === '1' ? 'Sí' : 'No', false);
+  html += fieldRow('Rango DHCP inicio', l.minAddress, true);
+  html += fieldRow('Rango DHCP fin', l.maxAddress, true);
+  html += fieldRow('Tiempo de arriendo DHCP', l.dhcpLeaseTime + ' seg (' + Math.floor(parseInt(l.dhcpLeaseTime || 0) / 3600) + 'h)', false);
+  html += fieldRow('DNS LAN', l.dns, true);
+  html += fieldRow('Puerta de enlace (Gateway)', l.gateway, false);
+  html += fieldRow('MTU', l.mtu, true);
+  if (l.domainName) html += fieldRow('Dominio', l.domainName, true);
+
+  const time = parsedData.time;
+  if (time.ntpServer1) {
+    html += '<div class="subsection-title">Servidores de tiempo (NTP)</div>';
+    html += fieldRow('NTP Server 1', time.ntpServer1, true);
+    if (time.ntpServer2) html += fieldRow('NTP Server 2', time.ntpServer2, true);
+    html += fieldRow('Zona Horaria', `${time.timezone} — ${time.tzName}`, false);
+    html += fieldRow('Intervalo sync (min)', time.syncInterval, true);
+  }
+
+  const acl = parsedData.acl;
+  if (acl) {
+    html += '<div class="subsection-title">Acceso remoto (ACL)</div>';
+    html += fieldRow('HTTP LAN', acl.httpLan === '1' ? '✅ Habilitado' : '❌ Deshabilitado', false);
+    html += fieldRow('HTTP WAN', acl.httpWan === '1' ? '✅ Habilitado' : '❌ Deshabilitado', false);
+    html += fieldRow('Telnet LAN', acl.telnetLan === '1' ? '✅ Habilitado' : '❌ Deshabilitado', false);
+    html += fieldRow('SSH LAN', acl.sshLan === '1' ? '✅ Habilitado' : '❌ Deshabilitado', false);
+    html += fieldRow('SSH WAN', acl.sshWan === '1' ? '✅ Habilitado' : '❌ Deshabilitado', false);
+    html += fieldRow('FTP LAN', acl.ftpLan === '1' ? '✅ Habilitado' : '❌ Deshabilitado', false);
+  }
+
+  document.getElementById('lan-list').innerHTML = html;
+}
+
+// --- DEVICES ---
+function renderDevices() {
+  const tbody = document.getElementById('devices-tbody');
+  if (!parsedData.devices.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:2rem">No se encontraron dispositivos.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = parsedData.devices.map(d => {
+    const mac = d.mac.replace(/(.{2})(.{2})(.{2})(.{2})(.{2})(.{2})/, '$1:$2:$3:$4:$5:$6').toUpperCase();
+    const online = d.online === '1';
+    const dt = d.devType ? `<span style="font-size:0.75rem;color:var(--muted)">${htmlE(d.devType)}</span>` : '—';
+    let lastSeen = d.lastSeen;
+    if (lastSeen) {
+      try {
+        const ts = new Date(lastSeen);
+        lastSeen = ts.toLocaleString('es');
+      } catch(e) {}
+    }
+    return `<tr class="device-row">
+      <td>${d.id}</td>
+      <td>${mac} <button class="btn-copy" onclick="copyText('${mac}',this)">Copiar</button></td>
+      <td>${htmlE(d.name) || '<span style="color:var(--muted)">—</span>'}</td>
+      <td>${dt}</td>
+      <td><span style="font-family:var(--mono);font-size:0.8rem;color:var(--muted)">${htmlE(d.iface)}</span></td>
+      <td style="color:var(--muted);font-size:0.8rem">${lastSeen || '—'}</td>
+      <td><span class="status-badge ${online ? 'status-on' : 'status-off'}"><span class="status-dot"></span>${online ? 'Online' : 'Offline'}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+// --- WAN ---
+function renderWAN() {
+  let html = '';
+  parsedData.wanConns.forEach((w, i) => {
+    html += `<div class="wifi-card">
+      <div class="wifi-header">
+        <div class="wifi-icon ${w.type === 'PPP' ? 'wifi-5g' : 'wifi-24'}">${w.type === 'PPP' ? '🔐' : '🌐'}</div>
+        <div>
+          <div class="wifi-title">WAN ${i+1} — ${w.type === 'PPP' ? 'PPPoE' : 'IP/DHCP'}</div>
+          <div class="wifi-band">Servicio: ${w.serviceList || '—'} · VLAN: ${w.vlan || '—'} · Puerto: ${w.bindPort || '—'}</div>
+        </div>
+        <span class="status-badge ${w.enable === '1' ? 'status-on' : 'status-off'}">
+          <span class="status-dot"></span> ${w.enable === '1' ? 'Activo' : 'Inactivo'}
+        </span>
+      </div>
+      <div class="wifi-fields">
+        ${wifiField('Tipo', w.connectionType, false)}
+        ${w.username ? wifiField('Usuario PPPoE', w.username, false) : ''}
+        ${wifiField('NAT', w.nat === '1' ? '✅ Activo' : '❌ Inactivo', false)}
+        ${wifiField('IPv4', w.ipv4 === '1' ? '✅' : '❌', false)}
+        ${wifiField('IPv6', w.ipv6 === '1' ? '✅' : '❌', false)}
+        ${wifiField('MTU', w.mtu || '—', false)}
+        ${w.ipv6LLA ? wifiField('IPv6 LLA', w.ipv6LLA, false) : ''}
+        ${w.dns ? wifiField('DNS', w.dns, false) : ''}
+        ${wifiField('Addressing', w.addressing || '—', false)}
+      </div>
+    </div>`;
+  });
+  if (!html) html = '<div class="alert alert-info">No se detectaron conexiones WAN.</div>';
+  document.getElementById('wan-list').innerHTML = html;
+}
+
+// --- SYSTEM ---
+function renderSystem() {
+  let html = '';
+  const p = parsedData.productInfo;
+  const d = parsedData.deviceInfo;
+
+  html += '<div class="subsection-title">Firmware y versión</div>';
+  if (p.originalVersion) html += fieldRow('Versión original', p.originalVersion, false);
+  if (p.currentVersion) html += fieldRow('Versión actual', p.currentVersion, false);
+  if (p.customInfo) html += fieldRow('ISP / Custom', p.customInfo, false);
+  if (p.customInfoDetail) html += fieldRow('Custom Detail', p.customInfoDetail, false);
+  if (d.firstUseDate) html += fieldRow('Primer uso', d.firstUseDate, false);
+  html += fieldRow('Reinicios hardware', d.totalHWReboot, false);
+  html += fieldRow('Reinicios software', d.totalSWReboot, false);
+  html += fieldRow('Arquitectura', d.arch, false);
+  html += fieldRow('Características', d.features, false);
+
+  document.getElementById('system-list').innerHTML = html;
+}
+
+// --- TR-069 ---
+function renderTR069() {
+  const t = parsedData.tr069;
+  let html = '';
+  html += fieldRow('CWMP Habilitado', t.enableCWMP === '1' ? 'Sí' : 'No', false);
+  html += fieldRow('URL ACS', t.url, true);
+  html += fieldRow('Username ACS', t.username, true);
+  if (isEncrypted(t.password)) html += encryptedRow('Password ACS', t.password);
+  else html += fieldRow('Password ACS', t.password, true);
+  html += fieldRow('Periodic Inform', t.periodicEnable === '1' ? 'Sí' : 'No', false);
+  html += fieldRow('Intervalo (seg)', t.periodicInterval, true);
+  html += fieldRow('Connection Req URL', t.connReqURL, false);
+  html += fieldRow('Conn Req Username', t.connReqUser, false);
+  if (isEncrypted(t.connReqPass)) html += encryptedRow('Conn Req Password', t.connReqPass);
+  else html += fieldRow('Conn Req Password', t.connReqPass, false);
+  if (isEncrypted(t.certPass)) html += encryptedRow('Cert Password TR-069', t.certPass);
+  html += fieldRow('Path (hash)', t.path, false);
+
+  document.getElementById('tr069-list').innerHTML = html;
+}
+
+// ========== HELPERS ==========
+function htmlE(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function escapeForAttr(str) {
+  return String(str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+function fieldRow(label, value, editable) {
+  const id = 'f_' + Math.random().toString(36).slice(2);
+  if (editable) {
+    return `<div class="field-row">
+      <div class="field-name">${htmlE(label)}</div>
+      <input class="field-input" id="${id}" value="${htmlE(value || '')}" onchange="markChanged(this)">
+      <span class="field-tag tag-edit">editable</span>
+    </div>`;
+  }
+  return `<div class="field-row">
+    <div class="field-name">${htmlE(label)}</div>
+    <input class="field-input readonly" value="${htmlE(value || '')}" readonly tabindex="-1">
+    <span class="field-tag tag-ro">solo lectura</span>
+  </div>`;
+}
+
+function encryptedRow(label, value) {
+  const id = 'enc_' + Math.random().toString(36).slice(2);
+  const safe = escapeForAttr(value);
+  return `<div class="field-row">
+    <div class="field-name">${htmlE(label)}</div>
+    <div class="pwd-container" style="flex:1">
+      <input class="field-input" id="${id}" value="••••••••••••••••" readonly style="cursor:pointer;color:var(--accent3)" onclick="revealInInput('${id}','${safe}')">
+      <button class="btn-reveal" onclick="revealInInput('${id}','${safe}')">🔓 Desencriptar</button>
+    </div>
+    <span class="field-tag tag-enc">AES-CBC</span>
+  </div>`;
+}
+
+function encHashRow(label, value, mode, salt) {
+  const id = 'h_' + Math.random().toString(36).slice(2);
+  return `<div class="field-row">
+    <div class="field-name">${htmlE(label)}</div>
+    <div class="pwd-container" style="flex:1">
+      <input class="field-input" id="${id}" value="${htmlE(value || '')}" readonly style="font-size:0.7rem;color:var(--muted)">
+    </div>
+    <span class="field-tag tag-pass">${htmlE(mode)}</span>
+  </div>`;
+}
+
+function revealInInput(id, encVal) {
+  const input = document.getElementById(id);
+  if (!input) return;
+  if (input.dataset.revealed) {
+    input.value = '••••••••••••••••';
+    delete input.dataset.revealed;
+    return;
+  }
+  // Decode HTML entities in the value
+  const txt = document.createElement('textarea');
+  txt.innerHTML = encVal;
+  const realVal = txt.value;
+
+  const result = hwDecrypt(realVal);
+  if (result.ok) {
+    input.value = result.plain;
+    input.style.color = 'var(--green)';
+    input.dataset.revealed = '1';
+    // Add copy button if not present
+    const btn = input.nextElementSibling;
+    if (btn) btn.textContent = '👁 Ocultar';
+  } else {
+    input.value = result.plain;
+    input.style.color = 'var(--red)';
+  }
+  input.type = 'text';
+}
+
+function copyValue(id, btn) {
+  const input = document.getElementById(id);
+  if (input) copyText(input.value, btn);
+}
+
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = '✓ Copiado';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1500);
+    }
+  });
+}
+
+function markChanged(input) {
+  input.style.borderColor = 'var(--yellow)';
+}
+
+function downloadRaw() {
+  const blob = new Blob([rawXML], { type: 'text/xml' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = currentFile || 'huawei-config.xml';
+  a.click();
+}
+
+function showSection(name) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+  document.getElementById('section-' + name)?.classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+</script>
+</body>
+</html>
